@@ -1,0 +1,138 @@
+function sysCall_init()
+         
+    -- This is executed exactly once, the first time this script is executed
+    bubbleRobBase=sim.getObject('.') -- this is bubbleRob's handle
+    leftMotor=sim.getObject("./leftMotor") -- Handle of the left motor
+    rightMotor=sim.getObject("./rightMotor") -- Handle of the right motor
+    noseSensor=sim.getObject("./sensingNose") -- Handle of the proximity sensor
+    floorSensorL=sim.getObject("./floorSensorL") -- Handle of the Floor Prox Sensor
+    floorSensorR=sim.getObject("./floorSensorR") -- Handle of the Floor Prox Sensor
+    floorSensorB=sim.getObject("./floorSensorB") -- Handle of the Floor Prox Sensor
+    visionSensor=sim.getObject("./visionSensor") -- Handle of the Vision Sensor
+    robotCollection=sim.createCollection(0)
+    sim.addItemToCollection(robotCollection,sim.handle_tree,bubbleRobBase,0)
+    robotTrace=sim.addDrawingObject(sim.drawing_linestrip+sim.drawing_cyclic,2,0,-1,20000,{1,1,0},nil,nil,{1,1,0})
+    randomNum = 5
+
+    state = 0
+    stop = 0
+    running = 1
+    noFloorL = 2
+    noFloorR = 3
+    noFloorB = 4
+    personDetect = 5
+    fire = 6
+    runOnce = false
+    stateChange(running)
+    
+    
+end
+
+function sysCall_sensing()
+
+    result,auxiliaryValuePacket1 = sim.readVisionSensor(visionSensor)
+
+    if sim.readProximitySensor(floorSensorL) == 0 then
+        stateChange(noFloorL)
+    elseif sim.readProximitySensor(floorSensorR) == 0 then
+        stateChange(noFloorR)
+    elseif sim.readProximitySensor(floorSensorB) == 0 then
+        stateChange(noFloorB)
+    elseif sim.readProximitySensor(noseSensor) == 1 then
+        stateChange(personDetect)
+    elseif auxiliaryValuePacket1[7] > 0.90 and auxiliaryValuePacket1[8] > 0.90 then
+        stateChange(fire)
+    end
+    
+    local p=sim.getObjectPosition(bubbleRobBase,-1)
+    sim.addDrawingObjectItem(robotTrace,p)
+end 
+
+function stateChange(newState)
+    if state ~= newState then
+        state = newState
+        runOnce = true
+        str = tostring(state)
+        --sim.addLog(sim.verbosity_none, "Change State...")
+    end
+end
+
+function sysCall_actuation() 
+    
+    if state == stop then
+        if runOnce then
+            sim.addLog(sim.verbosity_none, "Stopped!")
+            runOnce = false
+        end
+        sim.setJointTargetVelocity(leftMotor,0)
+        sim.setJointTargetVelocity(rightMotor,0)
+    elseif state == running then
+        if runOnce then
+            sim.addLog(sim.verbosity_none, "Running!")
+            randomNum = 4.5 + sim.getRandom()
+            runOnce = false
+        end
+        sim.setJointTargetVelocity(leftMotor,randomNum)
+        sim.setJointTargetVelocity(rightMotor,5)
+    elseif state == noFloorL then
+        if runOnce then
+            sim.addLog(sim.verbosity_none, "No Floor Left!")
+            endtime = sim.getSimulationTime() + 5
+            runOnce = false
+        end
+        sim.setJointTargetVelocity(leftMotor,-3)
+        sim.setJointTargetVelocity(rightMotor,-5)
+        if endtime < sim.getSimulationTime() then
+            stateChange(running)
+        end
+    elseif state == noFloorR then
+        if runOnce then
+            sim.addLog(sim.verbosity_none, "No Floor Right!")
+            endtime = sim.getSimulationTime() + 5
+            runOnce = false
+        end
+        sim.setJointTargetVelocity(leftMotor,-5)
+        sim.setJointTargetVelocity(rightMotor,-3)
+        if endtime < sim.getSimulationTime() then
+            stateChange(running)
+        end
+    elseif state == noFloorB then
+        if runOnce then
+            sim.addLog(sim.verbosity_none, "No Floor Back!")
+            endtime = sim.getSimulationTime() + 2
+            runOnce = false
+        end
+        sim.setJointTargetVelocity(leftMotor,3)
+        sim.setJointTargetVelocity(rightMotor,3)
+        if endtime < sim.getSimulationTime() then
+            stateChange(running)
+        end
+    elseif state == personDetect then
+        if runOnce then
+            sim.addLog(sim.verbosity_none, "Found Bill!")
+            endtime = sim.getSimulationTime() + 5
+            runOnce = false
+        end
+        sim.setJointTargetVelocity(leftMotor,-1)
+        sim.setJointTargetVelocity(rightMotor,-1)
+        if endtime < sim.getSimulationTime() then
+            stateChange(stop)
+        end
+    elseif state == fire then
+        if runOnce then
+            sim.addLog(sim.verbosity_none, "Fire!")
+            endtime = sim.getSimulationTime() + 5
+            runOnce = false
+        end
+        sim.setJointTargetVelocity(leftMotor,-1)
+        sim.setJointTargetVelocity(rightMotor,1)
+        if endtime < sim.getSimulationTime() then
+            stateChange(running)
+        end
+    end
+
+end
+
+function sysCall_cleanup() 
+    simUI.destroy(ui)
+end 
